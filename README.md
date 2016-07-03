@@ -8,6 +8,6 @@ Check the wiki for documentation.
 
 # Building
 
-SolidEngine uses make for building.
+SolidEngine uses [make] (http://www.computercraft.info/forums2/index.php?/topic/26048-lua-make-lua-pre-processor-for-computercraft/page__pid__253687#entry253687) for building.
 
 To build a SolidEngine project, just add the SolidEngine source as a dependency in your make file.
