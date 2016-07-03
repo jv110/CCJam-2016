@@ -86,9 +86,9 @@ sound = {
 
     if commands and commands.exec then
       commands.exec("playsound note." .. note.instrument .. " @p ~ ~ ~ " .. (volume or 100) .. " " .. note.note)
-    elseif self.cb then
-      self.cb.setCommand("playsound note." .. note.instrument .. " @p ~ ~ ~ " .. (volume or 100) .. " " .. note.note)
-      self.cb.runCommand()
+    elseif sound.cb then
+      sound.cb.setCommand("playsound note." .. note.instrument .. " @p ~ ~ ~ " .. (volume or 100) .. " " .. note.note)
+      sound.cb.runCommand()
     end
   end,
 
