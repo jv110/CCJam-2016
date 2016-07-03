@@ -6,8 +6,7 @@ body = {
       type = "body",
 
       velocity = vec4.new(),
-      acceleration = vec4.new(0, -0.125, 0),
-      precision = 0.125,
+      acceleration = vec4.new(0, -0.25, 0),
 
       update = function(self, level)
         local c = self.parent:getComponent("collider")
