@@ -10,4 +10,9 @@ Check the wiki for documentation.
 
 SolidEngine uses [make] (http://www.computercraft.info/forums2/index.php?/topic/26048-lua-make-lua-pre-processor-for-computercraft/page__pid__253687) for building.
 
-To build a SolidEngine project, just add the SolidEngine source as a dependency in your make file.
+To build a SolidEngine project, just add the SolidEngine source as a dependency in your makefile.
+
+# Notes
+
+- Playing sounds requires either command computers or a sound.connect(side) call to connect to a command block.
+- 3D and raycasting aren't implemented yet.
