@@ -1,12 +1,15 @@
 texture = {
+  colorLookup = {},
+
   new = function(width, height, pixels)
     local t = {
       type = "texture",
       
       pixels = pixels or {},
-      width = width or 51 * 2,
-      height = height or 19 * 3,
-      ppu = 1,
+      bgcolor = colors.black,
+      width = width or 0,
+      height = height or 0,
+      ppu = 0.0625,
       
       getWidth = function(self)
         return self.width
@@ -23,7 +26,7 @@ texture = {
       end,
       
       getPixel = function(self, x, y)
-        return self.pixels[x + y * self.width + 1] or colors.pink
+        return self.pixels[x + y * (self.width + 1)] or self.bgcolor
       end,
       
       setSize = function(self, width, height)
@@ -45,7 +48,7 @@ texture = {
           for y = 1, self.height do
             if not result[y] then result[y] = {} end
             
-            result[y][x] = self.pixels[x + y * self.width + 1] or colors.black
+            result[y][x] = self.pixels[x + y * self.width + 1] or self.bgcolor
           end
         end
         
@@ -60,5 +63,59 @@ texture = {
     }
     
     return t
+  end,
+
+  loadFile = function(path)
+    local h = fs.open(path, "r")
+    if h then
+      local d = h.readAll()
+      h.close()
+      return texture.load(d)
+    end
+    return nil
+  end,
+
+  load = function(data)
+    local tex = texture.new()
+
+    -- Load paintutils image
+    local lines = split(data, "\n")
+    local llines = #lines
+    tex.height = llines
+    local image = {}
+    for y = 1, llines do
+      local line = lines[y]
+      local lline = #line
+      if lline > tex.width then tex.width = lline end
+      local c = {}
+
+      for x = 1, lline do
+        c[x] = texture.colorLookup[string.byte(line,x,x)] or 0
+      end
+
+      table.insert(image, c)
+    end
+
+    -- Transform into texture
+    for y = 1, tex.height + 1 do
+      for x = 1, tex.width + 1 do
+        if image[y] and image[y][x] then
+          tex.pixels[x + y * tex.width] = image[y][x]
+        else
+          tex.pixels[x + y * tex.width] = 0
+        end
+      end
+    end
+
+    return tex
+  end,
+
+  fromGIF = function(gif)
+  
+    return texture.new(width, height, pixels)
   end
 }
+
+for i = 1, 16 do
+  texture.colorLookup[string.byte("0123456789abcdef", i, i)] = 2 ^ (i - 1)
+end

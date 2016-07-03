@@ -4,8 +4,7 @@
 sprite = {
   new = function(tex)
     local go = gameobject.new()
-    local sr = spriterenderer.new()
-    go:addComponent(sr, "renderer")
+    go:addComponent(spriterenderer.new(), "renderer")
     if tex then go:addComponent(tex, "texture") end
     
     return go
