@@ -93,8 +93,10 @@ sound = {
   end,
 
   continue = function()
-    for _, v in ipairs(sound.playing) do
-      v:continue()
+    for i, v in ipairs(sound.playing) do
+      if v:continue() then
+        table.remove(sound.playing, i)
+      end
     end
   end,
 
@@ -108,14 +110,19 @@ sound = {
 
       continue = function(self)
         if os.time() * 1000 >= self.t then
-          sound.playNote(self.notes[self.stage], volume)
-          self.stage = self.stage + 1
-          self.t = os.time() * 1000 + self.nps
+          if self.notes[self.stage] then
+            sound.playNote(self.notes[self.stage], volume)
+            self.stage = self.stage + 1
+            self.t = os.time() * 1000 + self.nps
+          else
+            return true
+          end
         end
       end
     }
 
-    table.insert(sound.playing, c)
-    c:continue()
+    if not c:continue() then
+      table.insert(sound.playing, c)
+    end
   end
 }

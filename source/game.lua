@@ -13,7 +13,6 @@ function rungame(game)
       sleep(fps)
       t = os.time() - t
       time.deltaTime = t / 20
-      sound.continue()
       game:update()
       game:render()
     end
@@ -28,8 +27,15 @@ function rungame(game)
       end
     end
   end
+
+  local function psound()
+    while true do
+      sound.continue()
+      os.sleep(0)
+    end
+  end
   
-  parallel.waitForAll(run, input)
+  parallel.waitForAll(run, input, psound)
 end
 
 function stopgame()

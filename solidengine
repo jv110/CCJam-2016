@@ -1106,8 +1106,10 @@ sound = {
     end
   end,
   continue = function()
-    for _, v in ipairs(sound.playing) do
-      v:continue()
+    for i, v in ipairs(sound.playing) do
+      if v:continue() then
+        table.remove(sound.playing, i)
+      end
     end
   end,
   playSound = function(s, volume)
@@ -1119,14 +1121,19 @@ sound = {
       stage = 1,
       continue = function(self)
         if os.time() * 1000 >= self.t then
-          sound.playNote(self.notes[self.stage], volume)
-          self.stage = self.stage + 1
-          self.t = os.time() * 1000 + self.nps
+          if self.notes[self.stage] then
+            sound.playNote(self.notes[self.stage], volume)
+            self.stage = self.stage + 1
+            self.t = os.time() * 1000 + self.nps
+          else
+            return true
+          end
         end
       end
     }
-    table.insert(sound.playing, c)
-    c:continue()
+    if not c:continue() then
+      table.insert(sound.playing, c)
+    end
   end
 }
 
@@ -1142,7 +1149,6 @@ function rungame(game)
       sleep(fps)
       t = os.time() - t
       time.deltaTime = t / 20
-      sound.continue()
       game:update()
       game:render()
     end
@@ -1157,8 +1163,14 @@ function rungame(game)
       end
     end
   end
+  local function psound()
+    while true do
+      sound.continue()
+      os.sleep(0)
+    end
+  end
   
-  parallel.waitForAll(run, input)
+  parallel.waitForAll(run, input, psound)
 end
 function stopgame()
   error()
