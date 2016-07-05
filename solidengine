@@ -1,0 +1,1228 @@
+
+
+
+vec4 = {
+  new = function(x, y, z, w)
+    local v = {
+      x = x or 0,
+      y = y or 0,
+      z = z or 0,
+      w = w or 0,
+      
+      dot = function(self, o)
+        return self.x * o.x + self.y * o.y + self.z * o.z + self.w * o.w
+      end,
+      
+      cross = function(self, o)
+        return vec4.new(
+          self.y * o.z - self.z * o.y,
+          self.z * o.x - self.x * o.z,
+          self.x * o.y - self.y * o.x
+        )
+      end,
+      
+      length = function(self)
+        return math.sqrt(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w)
+      end,
+      
+      normalize = function(self)
+        return self * 1 / self:length()
+      end,
+      
+      round = function(self, nTolerance)
+          nTolerance = nTolerance or 1
+          return vec4.new(
+            math.floor((self.x + (nTolerance * 0.5)) / nTolerance) * nTolerance,
+            math.floor((self.y + (nTolerance * 0.5)) / nTolerance) * nTolerance,
+            math.floor((self.z + (nTolerance * 0.5)) / nTolerance) * nTolerance,
+            math.floor((self.w + (nTolerance * 0.5)) / nTolerance) * nTolerance
+          )
+      end
+    }
+    
+    setmetatable(v, {
+      __index = v,
+      
+      __tostring = function(self)
+        return self.x .. ", " .. self.y .. ", " .. self.z .. ", " .. self.w
+      end,
+      
+      __add = function(self, o)
+        return vec4.new(
+          self.x + o.x,
+          self.y + o.y,
+          self.z + o.z,
+          self.w + o.w
+        )
+      end,
+      
+      __sub = function( self, o )
+        return vec4.new(
+          self.x - o.x,
+          self.y - o.y,
+          self.z - o.z,
+          self.w - o.w
+        )
+      end,
+      
+      __mul = function( self, m )
+        return vec4.new(
+          self.x * m,
+          self.y * m,
+          self.z * m,
+          self.w * m
+        )
+      end,
+      
+      __div = function( self, m )
+        return vec4.new(
+          self.x / m,
+          self.y / m,
+          self.z / m,
+          self.w / m
+        )
+      end,
+      
+      __unm = function( self )
+        return vec4.new(
+          -self.x,
+          -self.y,
+          -self.z,
+          -self.w 
+        )
+      end
+    })
+    
+    return v
+  end
+}
+
+
+vec3 = vector
+
+spriterenderer = {
+  new = function()
+    return {
+      type = "renderer",
+      
+      render = function(self, cam)
+        local tex = self.parent:getComponent("texture")
+        
+        if tex then
+          local pos = self.parent.pos - cam.pos
+          local scale = self.parent.scale
+          local size = vec3.new(scale.x * tex.width * tex.ppu, scale.y * tex.height * tex.ppu)
+          --local rot = self.parent.rot + cam.rot
+          
+          local topLeft =     cam.screenSpaceTransform * vec4.new(pos.x - size.x, pos.y + size.y, pos.z, pos.w)
+          local topRight =    cam.screenSpaceTransform * vec4.new(pos.x + size.x, pos.y + size.y, pos.z, pos.w)
+          local bottomLeft =  cam.screenSpaceTransform * vec4.new(pos.x - size.x, pos.y - size.y, pos.z, pos.w)
+          local bottomRight = cam.screenSpaceTransform * vec4.new(pos.x + size.x, pos.y - size.y, pos.z, pos.w)
+          local xDist = topRight.x - topLeft.x
+          local yDist = bottomLeft.y - topLeft.y
+          local texCoordXStep = tex.width / xDist
+          local texCoordYStep = tex.height / yDist
+          
+          local texCoordY = 0
+          for y = math.floor(topLeft.y), math.floor(bottomLeft.y) do
+            local texCoordX = 1
+            for x = math.floor(topLeft.x), math.floor(topRight.x) do
+              cam.buffer:setPixel(x, y, tex:getPixel(math.floor(texCoordX + 0.5), math.floor(texCoordY + 0.5)))
+              texCoordX = texCoordX + texCoordXStep
+            end
+            
+            texCoordY = texCoordY + texCoordYStep
+          end
+        end
+      end
+    }
+  end
+}
+
+
+gameobject = {
+  new = function()
+    return {
+      pos = vec4.new(),
+      rot = vec3.new(),
+      scale = vec3.new(1, 1, 1),
+      components = {},
+      
+      getComponent = function(self, t)
+        return self.components[t]
+      end,
+      
+      addComponent = function(self, component, t)
+        self.components[t or component.type] = component
+        component.parent = self
+      end,
+      
+      update = function(self)
+      
+      end
+    }
+  end
+}
+setmetatable(gameobject, {__index = gameobject, __call = gameobject.new})
+
+sprite = {
+  new = function(tex)
+    local go = gameobject.new()
+    go:addComponent(spriterenderer.new(), "renderer")
+    if tex then go:addComponent(tex, "texture") end
+    
+    return go
+  end
+}
+
+
+
+mat4x4 = {
+  new = function()
+    local m = {
+      values = {0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0},
+      
+      getValue = function(self, x, y)
+        return self.values[x + y * 4 + 1]
+      end,
+      
+      setValue = function(self, x, y, v)
+        self.values[x + y * 4 + 1] = v
+      end,
+      
+      setValues = function(self, v)
+        self.values = v
+      end,
+      
+      setIdentity = function(self)
+        self.values = {1, 0, 0, 0,
+                       0, 1, 0, 0,
+                       0, 0, 1, 0,
+                       0, 0, 0, 1}
+        
+        return self
+      end,
+      
+      setRotation = function(self, x, y, z)
+        self.values = {x.x, x.y, x.z, 0,
+                       y.x, y.y, y.z, 0,
+                       z.x, z.y, z.z, 0,
+                       0, 0, 0, 1}
+        
+        return self
+      end,
+      
+      setPerspective = function(self, fov, aspectRatio, near, far)
+        local tanHalfFOV = math.tan(fov / 2)
+        local range = near - far
+        
+        self.values = {1.0f / (tanHalfFOV * aspectRatio), 0, 0, 0,
+                       0, 1.0f / tanHalfFOV, 0, 0,
+                       0, 0, -near - far / range, 2 * far * near / range,
+                       0, 0, 1, 0}
+        
+        return self
+      end,
+    
+      setOrthographic = function(self, left, right, bottom, top, near, far)
+        local width = right - left
+        local height = top - bottom
+        local depth = far - near
+        
+        self.values = {2 / width, 0, 0, -(right + left) / width,
+                       0, 2 / height, 0, -(top + bottom) / height,
+                       0, 0, -2 / depth, -(far + near) / depth,
+                       0, 0, 0, 1}
+        
+        return this
+      end,
+      
+      setScreenSpaceTransform = function(self, halfWidth, halfHeight)
+        self.values = {halfWidth, 0, 0, halfWidth - 0.5f,
+                       0, -halfHeight, 0, halfHeight - 0.5f,
+                       0, 0, 1, 0,
+                       0, 0, 0, 1}
+        
+        return self
+      end,
+      
+      fromVector = function(self, vec)
+        self.values = {vec.x, 0, 0, 0,
+                       vec.y, 0, 0, 0,
+                       vec.z, 0, 0, 0,
+                       0, 0, 0, 0}
+        
+        return self
+      end,
+      
+      toVector = function(self)
+        return vec3.new(self:getValue(0, 0), self:getValue(0, 1), self:getValue(0, 2) + self:getValue(1, 0) + self:getValue(2, 0) + self:getValue(3, 0), self:getValue(0, 0) + self:getValue(1, 1) + self:getValue(2, 1) + self:getValue(3, 1), self:getValue(0, 2) + self:getValue(1, 2) + self:getValue(2, 2) + self:getValue(3, 2))
+      end
+    }
+    
+    setmetatable(m, {
+      __mul = function(self, m)
+        --print(m)
+        local out = vec4.new()
+        
+        out.x = m.x * self:getValue(0, 0) + m.y * self:getValue(1, 0) + m.z * self:getValue(2, 0) + self:getValue(3, 0)
+        out.y = m.x * self:getValue(0, 1) + m.y * self:getValue(1, 1) + m.z * self:getValue(2, 1) + self:getValue(3, 1)
+        out.z = m.x * self:getValue(0, 2) + m.y * self:getValue(1, 2) + m.z * self:getValue(2, 2) + self:getValue(3, 2)
+        out.w = m.x * self:getValue(0, 3) + m.y * self:getValue(1, 3) + m.z * self:getValue(2, 3) + self:getValue(3, 3)
+        
+        if not out.w == 1 then
+          --out.x = out.x / out.w
+          --out.y = out.y / out.w
+          --out.z = out.z / out.w
+        end
+        
+        --print(out)
+        
+        return out
+      end
+    })
+    
+    return m
+  end
+}
+
+
+
+gradient = {
+  new = function(minYVert, midYVert, maxYVert)
+    local g = {
+      getTexCoordX = function(self, loc) return self.texCoordX[loc] end,
+      getTexCoordY = function(self, loc) return self.texCoordY[loc] end,
+      getOneOverZ = function(self, loc) return self.oneOverZ[loc] end,
+      getDepth = function(self, loc) return self.depth[loc] end,
+      
+      getTexCoordXXStep = function(self) return self.texCoordXXStep end,
+      getTexCoordXYStep = function(self) return self.texCoordXYStep end,
+      getTexCoordYXStep = function(self) return self.texCoordYXStep end,
+      getTexCoordYYStep = function(self) return self.texCoordYYStep end,
+      getOneOverZXStep = function(self) return self.oneOverZXStep end,
+      getOneOverZYStep = function(self) return self.oneOverZYStep end,
+      getDepthXStep = function(self) return self.depthXStep end,
+      getDepthYStep = function(self) return self.depthYStep end,
+      
+      calcXStep = function(self, values, minYVert, midYVert, maxYVert, oneOverdX)
+        return (((values[2] - values[3]) * (minYVert:getY() - maxYVert:getY())) - ((values[1] - values[3]) * (midYVert:getY() - maxYVert:getY()))) * oneOverdX
+      end,
+      
+      calcYStep = function(self, values, minYVert, midYVert, maxYVert, oneOverdY)
+        return (((values[2] - values[3]) * (minYVert:getX() - maxYVert:getX())) - ((values[1] - values[3]) * (midYVert:getX() - maxYVert:getX()))) * oneOverdY
+      end,
+      
+      saturate = function(self, val)
+        if val > 1 then
+          return 1
+        end
+        
+        if val < 0 then
+          return 0
+        end
+        
+        return val
+      end,
+      
+      init = function(self, minYVert, midYVert, maxYVert)
+        local oneOverdX = 1 / (((midYVert:getX() - maxYVert:getX()) * (minYVert:getY() - maxYVert:getY())) - ((minYVert:getX() - maxYVert:getX()) * (midYVert:getY() - maxYVert:getY())))
+        local oneOverdY = -oneOverdX
+        
+        self.oneOverZ = {}
+        self.texCoordX = {}
+        self.texCoordY = {}
+        self.depth = {}
+        
+        self.depth[1] = minYVert:getZ()
+        self.depth[2] = midYVert:getZ()
+        self.depth[3] = maxYVert:getZ()
+        
+        -- Note that the W component is the perspective Z value
+        -- The Z component is the occlusion Z value
+        self.oneOverZ[1] = 1 / minYVert:getW()
+        self.oneOverZ[2] = 1 / midYVert:getW()
+        self.oneOverZ[3] = 1 / maxYVert:getW()
+        
+        self.texCoordX[1] = minYVert.texcoords.x * self.oneOverZ[1]
+        self.texCoordX[2] = midYVert.texcoords.x * self.oneOverZ[2]
+        self.texCoordX[3] = maxYVert.texcoords.x * self.oneOverZ[3]
+        
+        self.texCoordY[1] = minYVert.texcoords.y * self.oneOverZ[1]
+        self.texCoordY[2] = midYVert.texcoords.y * self.oneOverZ[2]
+        self.texCoordY[3] = maxYVert.texcoords.y * self.oneOverZ[3]
+        
+        self.texCoordXXStep = self:calcXStep(self.texCoordX, minYVert, midYVert, maxYVert, oneOverdX)
+        self.texCoordXYStep = self:calcYStep(self.texCoordX, minYVert, midYVert, maxYVert, oneOverdY)
+        self.texCoordYXStep = self:calcXStep(self.texCoordY, minYVert, midYVert, maxYVert, oneOverdX)
+        self.texCoordYYStep = self:calcYStep(self.texCoordY, minYVert, midYVert, maxYVert, oneOverdY)
+        self.oneOverZXStep = self:calcXStep(self.oneOverZ, minYVert, midYVert, maxYVert, oneOverdX)
+        self.oneOverZYStep = self:calcYStep(self.oneOverZ, minYVert, midYVert, maxYVert, oneOverdY)
+        self.depthXStep = self:calcXStep(self.depth, minYVert, midYVert, maxYVert, oneOverdX)
+        self.depthYStep = self:calcYStep(self.depth, minYVert, midYVert, maxYVert, oneOverdY)
+      end
+    }
+    
+    g:init(minYVert, midYVert, maxYVert)
+    g.init = nil
+    
+    return g
+  end
+}
+
+
+vertex = {
+  new = function(pos, texcoords)
+    local v = {
+      pos = pos,
+      texcoords = texcoords or vec3.new(),
+      
+      getX = function(self)
+        return self.pos.x
+      end,
+      
+      getY = function(self)
+        return self.pos.y
+      end,
+      
+      getZ = function(self)
+        return self.pos.z
+      end,
+      
+      getW = function(self)
+        return self.pos.w
+      end,
+      
+      transform = function(self, transform)
+        return vertex.new(transform * self.pos, self.texcoords)
+      end,
+      
+      perspectiveDivide = function(self)
+        return vertex.new(vec4.new(self.pos.x / self.pos.w, self.pos.y / self.pos.w, self.pos.z / self.pos.w, self.pos.w), self.texcoords)
+      end,
+      
+      triangleAreaTimesTwo = function(self, b, c)
+        local x1 = b:getX() - self.pos.x
+        local y1 = b:getY() - self.pos.y
+        
+        local x2 = c:getX() - self.pos.x
+        local y2 = c:getY() - self.pos.y
+    
+        return x1 * y2 - x2 * y1
+      end
+    }
+    
+    return v
+  end
+}
+
+
+edge = {
+  new = function(gradient, minYVert, maxYVert, minYVertIndex)
+    e = {
+      getX = function(self) return self.x end,
+      getYStart = function(self) return self.yStart end,
+      getYEnd = function(self) return self.yEnd end,
+      getTexCoordX = function(self) return self.texCoordX end,
+      getTexCoordY = function(self) return self.texCoordY end,
+      getOneOverZ = function(self) return self.oneOverZ end,
+      getDepth = function(self) return self.depth end,
+      
+      step = function(self)
+        self.x = self.x + self.xStep
+        self.texCoordX = self.texCoordX + self.texCoordXStep
+        self.texCoordY = self.texCoordY + self.texCoordYStep
+        self.oneOverZ = self.oneOverZ + self.oneOverZStep
+        self.depth = self.depth + self.depthStep
+      end,
+    
+      init = function(self, gradient, minYVert, maxYVert, minYVertIndex)
+        self.yStart = math.ceil(minYVert:getY())
+        self.yEnd = math.ceil(maxYVert:getY())
+    
+        local yDist = maxYVert:getY() - minYVert:getY()
+        local xDist = maxYVert:getX() - minYVert:getX()
+    
+        local yPreStep = self.yStart - minYVert:getY()
+        self.xStep = xDist / yDist
+        self.x = minYVert:getX() + yPreStep * self.xStep
+        local xPreStep = self.x - minYVert:getX()
+        
+        self.texCoordX = gradient:getTexCoordX(minYVertIndex) + gradient:getTexCoordXXStep() * xPreStep + gradient:getTexCoordXYStep() * yPreStep
+        self.texCoordXStep = gradient:getTexCoordXYStep() + gradient:getTexCoordXXStep() * self.xStep
+        
+        self.texCoordY = gradient:getTexCoordY(minYVertIndex) + gradient:getTexCoordYXStep() * xPreStep + gradient:getTexCoordYYStep() * yPreStep
+        self.texCoordYStep = gradient:getTexCoordYYStep() + gradient:getTexCoordYXStep() * self.xStep
+        
+        self.oneOverZ = gradient:getOneOverZ(minYVertIndex) + gradient:getOneOverZXStep() * xPreStep + gradient:getOneOverZYStep() * yPreStep
+        self.oneOverZStep = gradient:getOneOverZYStep() + gradient:getOneOverZXStep() * self.xStep
+        
+        self.depth = gradient:getDepth(minYVertIndex) + gradient:getDepthXStep() * xPreStep + gradient:getDepthYStep() * yPreStep
+        self.depthStep = gradient:getDepthYStep() + gradient:getDepthXStep() * self.xStep
+      end
+    }
+    
+    e:init(gradient, minYVert, maxYVert, minYVertIndex)
+    e.init = nil
+    
+    return e
+  end
+}
+
+
+texture = {
+  colorLookup = {},
+  new = function(width, height, pixels)
+    local t = {
+      type = "texture",
+      
+      pixels = pixels or {},
+      bgcolor = colors.black,
+      width = width or 0,
+      height = height or 0,
+      ppu = 0.0625,
+      
+      getWidth = function(self)
+        return self.width
+      end,
+      
+      getHeight = function(self)
+        return self.height
+      end,
+      
+      setPixel = function(self, x, y, color)
+        if x >= 1 and y >= 1 and x <= self.width and y <= self.height then
+          self.pixels[x + y * self.width + 1] = color
+        end
+      end,
+      
+      getPixel = function(self, x, y)
+        return self.pixels[x + y * (self.width + 1)] or self.bgcolor
+      end,
+      
+      setSize = function(self, width, height)
+        self.width, self.height = width, height
+      end,
+      
+      setWidth = function(self, width)
+        self.width = width
+      end,
+      
+      setHeight = function(self, height)
+        self.height = height
+      end,
+      
+      toPaintUtils = function(self)
+        local result = {}
+        
+        for x = 1, self.width do
+          for y = 1, self.height do
+            if not result[y] then result[y] = {} end
+            
+            result[y][x] = self.pixels[x + y * self.width + 1] or self.bgcolor
+          end
+        end
+        
+        return result
+      end,
+      
+      toBLittle = function(self)
+        os.loadAPI("blittle")
+        
+        return blittle.shrink(self:toPaintUtils())
+      end
+    }
+    
+    return t
+  end,
+  loadFile = function(path)
+    local h = fs.open(path, "r")
+    if h then
+      local d = h.readAll()
+      h.close()
+      return texture.load(d)
+    end
+    return nil
+  end,
+  load = function(data)
+    local tex = texture.new()
+    -- Load paintutils image
+    local lines = split(data, "\n")
+    local llines = #lines
+    tex.height = llines
+    local image = {}
+    for y = 1, llines do
+      local line = lines[y]
+      local lline = #line
+      if lline > tex.width then tex.width = lline end
+      local c = {}
+      for x = 1, lline do
+        c[x] = texture.colorLookup[string.byte(line,x,x)] or 0
+      end
+      table.insert(image, c)
+    end
+    -- Transform into texture
+    for y = 1, tex.height + 1 do
+      for x = 1, tex.width + 1 do
+        if image[y] and image[y][x] then
+          tex.pixels[x + y * tex.width] = image[y][x]
+        else
+          tex.pixels[x + y * tex.width] = 0
+        end
+      end
+    end
+    return tex
+  end,
+  fromGIF = function(gif)
+  
+    return texture.new(width, height, pixels)
+  end
+}
+for i = 1, 16 do
+  texture.colorLookup[string.byte("0123456789abcdef", i, i)] = 2 ^ (i - 1)
+end
+
+renderer2d = {
+  new = function()
+    return {
+      meshes = {},
+      
+      submit = function(self, mesh, tex)
+        mesh.tex = tex
+        table.insert(self.meshes, mesh)
+      end,
+      
+      fillTriangle = function(self, v1, v2, v3, texture, cam)
+        local minYVert = v1:transform(cam.screenSpaceTransform)
+        local midYVert = v2:transform(cam.screenSpaceTransform)
+        local maxYVert = v3:transform(cam.screenSpaceTransform)
+        
+        local handedness = minYVert:triangleAreaTimesTwo(maxYVert, midYVert) >= 0
+        
+        if handedness then
+          return nil
+        end
+        
+        if maxYVert:getY() < midYVert:getY() then
+          local temp = maxYVert
+          maxYVert = midYVert
+          midYVert = temp
+        end
+        
+        if(midYVert:getY() < minYVert:getY()) then
+          local temp = midYVert
+          midYVert = minYVert
+          minYVert = temp
+        end
+        
+        if(maxYVert:getY() < midYVert:getY()) then
+          local temp = maxYVert
+          maxYVert = midYVert
+          midYVert = temp
+        end
+        
+        self:scanEdges(minYVert, maxYVert, minYVert, midYVert, texture, cam.buffer)
+        self:scanEdges(minYVert, maxYVert, midYVert, maxYVert, texture, cam.buffer)
+      end,
+      
+      scanEdges = function(self, leftMinYVert, leftMaxYVert, rightMinYVert, rightMaxYVert, texture, buffer)
+        local xMin = math.ceil(leftMinYVert:getX())
+        local xMax = math.ceil(rightMinYVert:getX())
+        local yStart = math.ceil(rightMinYVert:getY())
+        local yEnd = math.ceil(rightMaxYVert:getY())
+        
+        local xDist = rightMinYVert:getX() - leftMinYVert:getX()
+        local yDist = rightMaxYVert:getY() - rightMinYVert:getY()
+        
+        local texCoordX = 1
+        local texCoordXStep = texture.width / xDist --/ texture.width
+        
+        local texCoordY = 0
+        local texCoordYStep = texture.height / yDist --/ texture.height
+        
+        for j = yStart, yEnd do
+          local itexCoordX = texCoordX
+          
+          for i = xMin, xMax do
+            local srcX = math.floor(itexCoordX + 0.5)
+            local srcY = math.floor(texCoordY + 0.5)
+            
+            buffer:setPixel(i, j, texture:getPixel(srcX, srcY))
+            itexCoordX = itexCoordX + texCoordXStep
+          end
+          
+          texCoordY = texCoordY + texCoordYStep
+        end
+      end,
+      flush = function(self, cam)
+        for _, mesh in ipairs(self.meshes) do
+          for i = 1, #mesh, 3 do
+            local tex = mesh.tex
+            
+            if tex then
+              self:fillTriangle(mesh[i], mesh[i + 1], mesh[i + 2], tex, cam)
+            end
+          end
+        end
+        
+        self.meshes = {}
+      end
+    }
+  end
+}
+
+camera2d = {
+  new = function()
+    return {
+      screenSpaceTransform = mat4x4.new(),
+      renderer = renderer2d.new(),
+      buffer = texture.new(),
+      pos = vec4.new(),
+      rot = vec3.new(),
+      
+      viewport = function(self, x, y, width, height, hires)
+        self.buffer.x, self.buffer.y, self.buffer.width, self.buffer.height = x, y, width, height
+        
+        self.screenSpaceTransform:setScreenSpaceTransform(width / 2, height / 2)
+        self.hires = hires
+      end,
+      
+      setPosition = function(self, x, y, z)
+        if type(x) == "table" then
+          self.pos = x
+        else
+          if x then self.pos.x = x end
+          if y then self.pos.y = y end
+          if z then self.pos.z = z end
+        end
+      end,
+      
+      setRotation = function(self, x, y, z)
+        if type(x) == "table" then
+          self.rot = x
+        else
+          if x then self.rot.x = x end
+          if y then self.rot.y = y end
+          if z then self.rot.z = z end
+        end
+      end,
+      
+      clear = function(self, color)
+        self.buffer.bgcolor = color
+        self.buffer.pixels = {}
+      end,
+      render = function(self, level)
+        for _, v in ipairs(level.objects) do
+          local mesh = v:getComponent("mesh")
+          local tex = v:getComponent("texture")
+          local r = v:getComponent("renderer")
+          
+          if r then
+            r:render(self)
+          elseif mesh and tex then
+            self.renderer:submit(mesh, tex)
+          end
+        end
+        
+        self.renderer:flush(self)
+        
+        if self.hires then
+          local blbuffer = self.buffer:toBLittle()
+          blittle.draw(blbuffer)
+        else
+          paintutils.drawImage(self.buffer:toPaintUtils(), 1, 1)
+        end
+      end
+    }
+  end
+}
+
+
+
+function textutils.contains(t, v)
+  for i = 1, #t do
+    if t[i] == v then
+      return true
+    end
+  end
+  
+  return false
+end
+function textutils.startswith(str, start)
+  if str and start then
+    return string.sub(str, 1, string.len(start)) == start
+  else
+    return false
+  end
+end
+function textutils.split(inputstr, sep)
+  sep = sep or "%s"
+  
+  local t = {}
+  local i = 1
+  
+  for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
+    t[i] = str
+    i = i + 1
+  end
+  
+  return t
+end
+function textutils.chars(str)
+  local c = {}
+  for i = 1, #str do
+    table.insert(c, str:sub(i, i))
+  end
+  return c
+end
+
+mesh = {
+  loadOBJ = function(data)
+    local vertices = {}
+    local indices = {}
+    local texcoords = {}
+    local texindices = {}
+    local lines = textutils.split(data, "\n")
+    for i = 1, #lines do
+      local line = lines[i]
+      local t = textutils.split(line, " ")
+      if t[1] == "v" then
+        vertices[#vertices + 1] = vector.new(tonumber(t[2]), tonumber(t[3]), tonumber(t[4]))
+      end
+      if t[1] == "f" then
+        local s1 = textutils.split(t[2], "/")
+        if #s1 > 1 then
+          local s2 = textutils.split(t[3], "/")
+          local s3 = textutils.split(t[4], "/")
+          indices[#indices + 1] = tonumber(s1[1])
+          indices[#indices + 1] = tonumber(s2[1])
+          indices[#indices + 1] = tonumber(s3[1])
+          texindices[#texindices + 1] = tonumber(s1[2])
+          texindices[#texindices + 1] = tonumber(s2[2])
+          texindices[#texindices + 1] = tonumber(s3[2])
+        else
+          indices[#indices + 1] = tonumber(t[2])
+          indices[#indices + 1] = tonumber(t[3])
+          indices[#indices + 1] = tonumber(t[4])
+        end
+      end
+      if t[1] == "vt" then
+        texcoords[#texcoords + 1] = vector.new(tonumber(t[2]), tonumber(t[3]), tonumber(t[4]))
+      end
+    end
+    local verts = {}
+    local uvs = {}
+    
+    local res = {
+      type = "mesh"
+    }
+    for i = 1, #indices do
+      if not res[i] then res[i] = vertex.new() end
+      res[i].pos = vertices[indices[i]]
+    end
+    for i = 1, #texindices do
+      if not res[i] then res[i] = vertex.new() end
+      res[i].texcoords = texcoords[texindices[i]]
+    end
+    return res
+  end
+}
+
+
+aabb = {
+  new = function(x1, y1, z1, x2, y2, z2)
+    local a = {
+      type = "collider",
+      
+      x1 = 0,
+      y1 = 0,
+      z1 = 0,
+      x2 = 0,
+      y2 = 0,
+      z2 = 0,
+      matchParent = function(self)
+        self.matchParentMode = true
+        return self
+      end,
+      isAABBInside = function(self, a)
+        if self.x2 < a.x1 then return false end
+        if self.x1 > a.x2 then return false end
+        if self.y2 < a.y1 then return false end
+        if self.y1 > a.y2 then return false end
+        if self.z2 < a.z1 then return false end
+        if self.z1 > a.z2 then return false end
+        return true
+      end,
+      isInside = function(self, x, y, z)
+        return x > self.x1 and x < self.x2 and y > self.y1 and y < self.y2 and z > self.z1 and z < self.z2
+      end,
+      update = function(self, level)
+        local tex = self.parent:getComponent("texture")
+        if self.matchParentMode and tex then
+          local scale = self.parent.scale
+          local size = vec3.new(scale.x * tex.width * tex.ppu, scale.y * tex.height * tex.ppu)
+          self.x1 = self.parent.pos.x - size.x
+          self.y1 = self.parent.pos.y - size.y
+          self.z1 = self.parent.pos.z - size.z
+          self.x2 = self.parent.pos.x + size.x
+          self.y2 = self.parent.pos.y + size.y
+          self.z2 = self.parent.pos.z + size.z
+        end
+      end
+    }
+    if type(x1) == "table" then
+      a.x1 = x1.x
+      a.y1 = x1.y
+      a.z1 = x1.z
+      if type(y1) == "table" then
+        a.x1 = y1.x
+        a.y1 = y1.y
+        a.z1 = y1.z
+      end
+    else
+      if x1 then a.x1 = x1 end
+      if y1 then a.y1 = y1 end
+      if z1 then a.z1 = z1 end
+      if x2 then a.x2 = x2 end
+      if y2 then a.y2 = y2 end
+      if z2 then a.z2 = z2 end
+    end
+    setmetatable(a, {
+      __add = function(self, v)
+        local r = aabb.new(self.x1 + v.x, self.y1 + v.y, self.z1 + v.z, self.x2 + v.x, self.y2 + v.y, self.z2 + v.z)
+        r.parent = self.parent
+        return r
+      end,
+      __sub = function(self, v)
+        local r = aabb.new(self.x1 - v.x, self.y1 - v.y, self.z1 - v.z, self.x2 - v.x, self.y2 - v.y, self.z2 - v.z)
+        r.parent = self.parent
+        return r
+      end
+    })
+    return a
+  end
+}
+
+
+
+time = {
+  deltaTime = 0
+}
+
+body = {
+  new = function()
+    return {
+      type = "body",
+      velocity = vec4.new(),
+      acceleration = vec4.new(0, -0.25, 0),
+      update = function(self, level)
+        local c = self.parent:getComponent("collider")
+        
+        local vp = self.velocity * time.deltaTime
+        
+        if c == nil or not level:isInObject(c + vp) then
+          self.parent.pos = self.parent.pos + vp
+          self.velocity = self.velocity + self.acceleration * time.deltaTime
+        else
+          self.velocity = vec4.new()
+        end
+      end
+    }
+  end
+}
+
+
+level = {
+  new = function()
+    return {
+      objects = {},
+      
+      addObject = function(self, obj)
+        table.insert(self.objects, obj)
+      end,
+      isInObject = function(self, a)
+        for _, v in ipairs(self.objects) do
+          local b = v:getComponent("collider")
+          if (not (a.parent and a.parent == v)) and b and b:isAABBInside(a)then
+            return true, v
+          end
+        end 
+      end,
+      update = function(self)
+        for _, o in ipairs(self.objects) do
+          o:update(self)
+          for _, c in pairs(o.components) do
+            if not (c.update == nil) then
+              c:update(self)
+            end
+          end
+        end
+      end
+    }
+  end
+}
+
+
+
+fileutils = {
+  readFile = function(path)
+    local h = fs.open(shell.resolve(path), "r")
+    if h then
+      local r = h.readAll()
+      h.close()
+      return r
+    end
+    return nil
+  end,
+  writeFile = function(path, data)
+    local h = fs.open(shell.resolve(path), "w")
+    if h then
+      h.write(data)
+      h.close()
+    end
+  end,
+  appendFile = function(path, data)
+    local h = fs.open(shell.resolve(path), "a")
+    if h then
+      h.append(data)
+      h.close()
+    end
+  end,
+  mkdir = function(path, data)
+    fs.mkdir(shell.resolve(path))
+  end,
+  exists = function(path, data)
+    return fs.exists(shell.resolve(path))
+  end
+}
+
+
+notes = {
+  ["F#"] = 0.0,
+  ["G"]  = 0.53,
+  ["G#"] = 0.56,
+  ["A"]  = 0.6,
+  ["A#"] = 0.63,
+  ["B"]  = 0.67,
+  ["C"]  = 0.7,
+  ["C#"] = 0.75,
+  ["D"]  = 0.8,
+  ["D#"] = 0.85,
+  ["E"]  = 0.9,
+  ["F"]  = 0.95,
+  ["F#"] = 1.0,
+  ["G"]  = 1.05,
+  ["G#"] = 1.1,
+  ["A"]  = 1.2,
+  ["A#"] = 1.25,
+  ["B"]  = 1.32,
+  ["C"]  = 1.4,
+  ["C#"] = 1.5,
+  ["D"]  = 1.6,
+  ["D#"] = 1.7,
+  ["E"]  = 1.8,
+  ["F"]  = 1.9,
+  ["F#"] = 2.0,
+  [" "]  = 3.0
+}
+
+sound = {
+  playing = {},
+  cb = nil,
+  new = function(notes, speed)
+    local s = {
+      notes = notes or {},
+      speed = speed or 0,
+      
+      addBreak = function(self)
+        table.insert(self.notes, {note = 3})
+      end,
+      addNote = function(self, note, instrument)
+        if type(note) == "string" then
+          table.insert(self.notes, {note = notes[note] or 3, instrument = instrument or "harp"})
+        elseif type(note) == "number" then
+          table.insert(self.notes, {note = note or 3, instrument = instrument or "harp"})
+        end
+      end
+    }
+    return s
+  end,
+  connect = function(side)
+    local cb = peripherals.wrap(side)
+    if cb then self.cb = cb end
+  end,
+  load = function(data)
+    local result = sound.new()
+    local lines = textutils.split(data, "\n")
+    local f = data
+    for i = 1, #lines do
+      if #lines[i] > 0 then
+        f = lines[i]
+      end
+    end
+    
+    local notes = textutils.chars(f)
+    local speed = notes[1]:byte(1)
+    
+    if (not speed) or tonumber(notes[2]:byte(1)) <= 200 then return nil end
+    
+    result.speed = speed
+    instruments = {
+      "bass",
+      "bd",
+      "harp",
+      "hat",
+      "pling",
+      "snare"
+    }
+    curinstrument = 0
+    for i = 2, #notes do
+      local rnote = {}
+      local note = notes[i]
+      local b = notes[i]:byte(1)
+      if b == 255 then
+        result:addBreak()
+      elseif b > 200 then
+        curinstrument = instruments[b - 200]
+      else
+        result:addNote(b / 100, curinstrument)
+      end
+    end
+    return result
+  end,
+  loadFile = function(path)
+    return sound.load(fileutils.readFile(path))
+  end,
+  playNote = function(note, volume)
+    if note.note == 3 then return nil end
+    if commands and commands.exec then
+      commands.exec("playsound note." .. note.instrument .. " @p ~ ~ ~ " .. (volume or 100) .. " " .. note.note)
+    elseif sound.cb then
+      sound.cb.setCommand("playsound note." .. note.instrument .. " @p ~ ~ ~ " .. (volume or 100) .. " " .. note.note)
+      sound.cb.runCommand()
+    end
+  end,
+  continue = function()
+    for _, v in ipairs(sound.playing) do
+      v:continue()
+    end
+  end,
+  playSound = function(s, volume)
+    local c = {
+      notes = s.notes,
+      nps = 1 / s.speed,
+      volume = volume,
+      t = os.time() * 1000 + 1 / s.speed,
+      stage = 1,
+      continue = function(self)
+        if os.time() * 1000 >= self.t then
+          sound.playNote(self.notes[self.stage], volume)
+          self.stage = self.stage + 1
+          self.t = os.time() * 1000 + self.nps
+        end
+      end
+    }
+    table.insert(sound.playing, c)
+    c:continue()
+  end
+}
+
+
+function rungame(game)
+  local function run()
+    local fps = 1 / game.fps
+    
+    game:init()
+    
+    local t = os.time()
+    while true do
+      sleep(fps)
+      t = os.time() - t
+      time.deltaTime = t / 20
+      sound.continue()
+      game:update()
+      game:render()
+    end
+  end
+  
+  local function input()
+    while true do
+      local event, p1, p2, p3, p4, p5 = os.pullEvent()
+      
+      for _, v in ipairs(game.inputmanagers) do
+        v:handleEvent(event, p1, p2, p3, p4, p5)
+      end
+    end
+  end
+  
+  parallel.waitForAll(run, input)
+end
+function stopgame()
+  error()
+end
+
+local cam = camera2d.new()
+local lvl = level.new()
+local sp = sprite.new(texture.load([[
+
+    555555
+   55555555
+ 1 5cccccc5 1
+ 1 cccccccc 1
+ 11c151151c11
+ 11c1c11c1c11
+  1111111111c
+   511cc115cc
+ ccccc1115551
+cc1cccc555551
+c111cc1cc55c
+cc1ccc15ccc5
+cc1ccc1cc555
+cccccc1555c
+ 111111 ccc
+        ccc
+
+]]))
+sp.scale = vec3.new(0.0625, 0.0625, 1) 
+local b = body.new()
+sp:addComponent(aabb.new():matchParent())
+sp:addComponent(b)
+local sp2 = sprite.new(texture.new(1, 1, {colors.blue, colors.yellow, colors.red, colors.magenta}))
+sp2.pos.y = -0.5
+sp2.scale.x = 16
+sp2:addComponent(aabb.new():matchParent())
+lvl:addObject(sp)
+lvl:addObject(sp2)
+sound.playSound(sound.load("Í}ÿÿÿ}ÿ}}}}ÿnÿ}"))
+game = {
+  inputmanagers = {
+    {
+      handleEvent = function(self, event, p1, p2, p3, p4, p5)
+        if event == "mouse_click" then b.velocity.y = 0.25 end
+      end
+    }
+  },
+  
+  fps = 20,
+  
+  init = function(self)
+    local termWidth, termHeight = term.getSize()
+    cam:viewport(1, 1, termWidth * 2, termHeight * 3, true)
+    b.velocity.x = 0.125
+  end,
+  
+  update = function(self)
+    lvl:update()
+    term.setCursorPos(1, 1)
+    print(time.deltaTime / 20)
+  end,
+  
+  render = function(self)
+    cam:clear(colors.black)
+    cam:render(lvl)
+  end
+}
+rungame(game)
